@@ -3,7 +3,7 @@
 
   <node name="cartographer_node" pkg="cartographer_ros"
       type="cartographer_node" args="
-          -configuration_directory $(find me5413_world)/configuration_files
+          -configuration_directory $(find me5413_world)/config/cartographer_2d
           -configuration_basename 5413_Task1.lua"
       output="screen">
     <remap from="scan" to="/front/scan" />
@@ -16,5 +16,5 @@
       type="cartographer_occupancy_grid_node" args="-resolution 0.05" />
 
   <node name="rviz" pkg="rviz" type="rviz" required="true"
-      args="-d $(find me5413_world)/configuration_files/demo_2d.rviz" />
+      args="-d $(find me5413_world)/config/cartographer_2d/demo_2d.rviz" />
 </launch>

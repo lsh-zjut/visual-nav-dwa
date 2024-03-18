@@ -22,12 +22,19 @@
       output="screen">
     <remap from="points2" to="/mid/points" />
     <remap from="imu" to="/imu/data" />
+    <remap from="odom" to="/odometry/filtered" />
+    <remap from="fix" to="/navsat/fix"/>
   </node>
 
   <node name="rviz" pkg="rviz" type="rviz" required="true"
     args="-d $(find me5413_world)/config/cartographer_3d/demo_3d.rviz" />
 
-  <node name="teleop_twist_keyboard" pkg="teleop_twist_keyboard" type="teleop_twist_keyboard.py" output="screen" respawn="true"/>
+      <!-- Joy Node 手柄控制节点-->
+  <node name="joynode" pkg="joy" type="joy_node" args="" output="screen">
+    <param name="autorepeat_rate" value="10"/>
+    <param name="dev" value="/dev/input/js0"/>
+  </node>
+  <node name="joy_control" pkg="me5413_world" type="joy_control" output="screen"/>
 
   <node name="cartographer_occupancy_grid_node" pkg="cartographer_ros"
       type="cartographer_occupancy_grid_node" args="-resolution 0.05" />

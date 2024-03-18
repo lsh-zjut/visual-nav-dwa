@@ -18,6 +18,10 @@ find_package(catkin REQUIRED COMPONENTS
   tf2_ros
   tf2_eigen
   tf2_geometry_msgs
+
+
+  sensor_msgs
+  geometry_msgs
 )
 find_package(gazebo REQUIRED)
 
@@ -45,3 +49,6 @@ add_dependencies(goal_publisher_node ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME
 
 add_library(object_spawner_gz_plugin SHARED src/object_spawner_gz_plugin.cpp)
 target_link_libraries(object_spawner_gz_plugin ${catkin_LIBRARIES} ${GAZEBO_LIBRARIES})
+
+add_executable(joy_control src/joy_control.cpp)
+target_link_libraries(joy_control ${catkin_LIBRARIES})

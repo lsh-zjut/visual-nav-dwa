@@ -21,6 +21,13 @@ roslaunch me5413_world navigation.launch
 ### 3. Modification
 
 现在Navigation.launch里直接用me5413_wolrd里的amcl.launch和move_base.launch文件
+测试了teb_local_planner，取得一定的效果
+虽然目前能处理静态障碍，但是动态识别到的障碍物还不能绕过去
+
+### 4. 安装teb local planner
+```
+sudo apt-get install ros-noetic-teb-local-planner
+```
 
 # amcl.launch
 主要修改了如下部分，解决定位偏移问题：

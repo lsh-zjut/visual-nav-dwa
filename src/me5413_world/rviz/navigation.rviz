@@ -7,7 +7,6 @@ Panels:
         - /Global Options1
         - /Status1
         - /Sensing1
-        - /Localization1
         - /Planning1
         - /Planning1/Local CostMap1
         - /Evaluation1
@@ -30,7 +29,7 @@ Panels:
   - Class: rviz/Time
     Name: Time
     SyncMode: 0
-    SyncSource: PointCloud2
+    SyncSource: Image
   - Class: rviz_panel::simplePanel
     Name: simplePanel
 Preferences:
@@ -239,8 +238,8 @@ Visualization Manager:
         - Alpha: 1
           Autocompute Intensity Bounds: true
           Autocompute Value Bounds:
-            Max Value: 6.017329692840576
-            Min Value: 4.522706508636475
+            Max Value: 5.794246673583984
+            Min Value: -0.9823746681213379
             Value: true
           Axis: X
           Channel Name: intensity
@@ -267,8 +266,8 @@ Visualization Manager:
         - Alpha: 1
           Autocompute Intensity Bounds: true
           Autocompute Value Bounds:
-            Max Value: 2.0877206325531006
-            Min Value: -0.07059860229492188
+            Max Value: 3.1792826652526855
+            Min Value: -0.07012569904327393
             Value: true
           Axis: Z
           Channel Name: intensity
@@ -276,7 +275,7 @@ Visualization Manager:
           Color: 255; 255; 255
           Color Transformer: AxisColor
           Decay Time: 0
-          Enabled: true
+          Enabled: false
           Invert Rainbow: false
           Max Color: 255; 255; 255
           Min Color: 0; 0; 0
@@ -291,7 +290,7 @@ Visualization Manager:
           Unreliable: false
           Use Fixed Frame: true
           Use rainbow: true
-          Value: true
+          Value: false
         - Class: rviz/Camera
           Enabled: false
           Image Rendering: background and overlay
@@ -309,15 +308,12 @@ Visualization Manager:
             Grid: true
             InteractiveMarkers: true
             Localization:
-              "": true
+              AMCL PoseArray: true
+              AMCL PoseWithCovariance: true
+              Map: true
               Value: true
             Planning:
-              Foot Print: true
-              Full Path: true
-              Global CostMap: true
-              Goal Pose: true
-              Local CostMap: true
-              Local Path: true
+              "": true
               Value: true
             RobotModel: true
             Sensing:
@@ -483,12 +479,12 @@ Visualization Manager:
           Class: rviz/Map
           Color Scheme: map
           Draw Behind: false
-          Enabled: false
+          Enabled: true
           Name: Global CostMap
           Topic: /move_base/global_costmap/costmap
           Unreliable: false
           Use Timestamp: false
-          Value: false
+          Value: true
         - Alpha: 0.699999988079071
           Class: rviz/Map
           Color Scheme: map
@@ -662,7 +658,7 @@ Visualization Manager:
           Marker Topic: /gazebo/ground_truth/box_markers
           Name: BoxMarkerArray
           Namespaces:
-            {}
+            gazebo: true
           Queue Size: 100
           Value: true
       Enabled: true
@@ -695,7 +691,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/ThirdPersonFollower
-      Distance: 18.648313522338867
+      Distance: 23.740150451660156
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -703,17 +699,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 4.969242095947266
-        Y: 2.220689535140991
+        X: -1.2324113845825195
+        Y: -0.22771888971328735
         Z: 0
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.2947965860366821
+      Pitch: 1.519796371459961
       Target Frame: base_link
-      Yaw: 1.5053998231887817
+      Yaw: 2.8004043102264404
     Saved:
       - Class: rviz/ThirdPersonFollower
         Distance: 4

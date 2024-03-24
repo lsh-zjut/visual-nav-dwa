@@ -1,5 +1,6 @@
 map_type: costmap
-footprint: [[-0.21, -0.165], [-0.21, 0.165], [0.21, 0.165], [0.21, -0.165]]
+footprint: [[-0.31, -0.255], [-0.31, 0.255], [0.31, 0.255], [0.31, -0.255]] # add footprint_padding
+#footprint: [[-0.21, -0.165], [-0.21, 0.165], [0.21, 0.165], [0.21, -0.165]]
 robot_base_frame: base_link
 transform_tolerance: 0.3
 

@@ -47,8 +47,8 @@ sudo apt-get install ros-noetic-teb-local-planner
 inflater_layer:
  inflation_radius: 0.35 
 
-这里最好要根据车的大小来改（不知道怎么看车的大小，还没改）
-footprint: [[-0.21, -0.165], [-0.21, 0.165], [0.21, 0.165], [0.21, -0.165]]
+这里已根据小车urdf更改
+footprint: [[-0.21, -0.155], [-0.21, 0.155], [0.21, 0.155], [0.21, -0.155]]
 footprint_padding: 0.1
 
 另外要换掉local和global planner

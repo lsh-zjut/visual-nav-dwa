@@ -29,6 +29,11 @@ roslaunch me5413_world navigation.launch
 sudo apt-get install ros-noetic-teb-local-planner
 ```
 
+### 5. 安装compressed-image-transport
+```
+sudo apt-get install ros-noetic-compressed-image-transport
+```
+
 # amcl.launch
 主要修改了如下部分，解决定位偏移问题：
     <param name="gui_publish_rate" value="20.0"/>

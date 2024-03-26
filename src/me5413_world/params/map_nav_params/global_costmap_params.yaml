@@ -11,4 +11,5 @@ global_costmap:
   plugins:
      - {name: static_layer,            type: "costmap_2d::StaticLayer"}
      - {name: obstacle_layer,          type: "costmap_2d::VoxelLayer"}
+     - {name: prohibition_layer,        type: "costmap_prohibition_layer_namespace::CostmapProhibitionLayer"}     
      - {name: inflation_layer,         type: "costmap_2d::InflationLayer"}

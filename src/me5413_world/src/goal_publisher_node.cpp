@@ -95,25 +95,6 @@ void GoalPublisherNode::goalNameCallback(const std_msgs::String::ConstPtr& name)
   this->goal_type_ = goal_name.substr(1, end-1);
   const int goal_box_id = stoi(goal_name.substr(end+1, 1));
 
-  // Initialize x_array, y_array, yaw_array to contain four
-  // corners position and yaw of the packing area
-  std::vector<double> x_array, y_array, yaw_array;
-  for (size_t counter = 0; counter < 4; counter++)
-  {
-    // Convert counter to string
-    std::string counter_str = std::to_string(counter+1);
-    nh_.getParam("/me5413_world/packing_area_" + counter_str + "/x", x_array[counter]);
-    nh_.getParam("/me5413_world/packing_area_" + counter_str + "/y", y_array[counter]);
-    nh_.getParam("/me5413_world/packing_area_" + counter_str + "/yaw", yaw_array[counter]);
-  }
-  // Get the rectangle range of the packing area
-  PackingArea packing_area;
-  packing_area.x_min = *std::min_element(x_array.begin(), x_array.end());
-  packing_area.x_max = *std::max_element(x_array.begin(), x_array.end());
-  packing_area.y_min = *std::min_element(y_array.begin(), y_array.end());
-  packing_area.y_max = *std::max_element(y_array.begin(), y_array.end());
-  packing_area.yaw = *std::min_element(yaw_array.begin(), yaw_array.end());
-
   geometry_msgs::PoseStamped P_world_goal;
   if (this->goal_type_ == "box")
   {
@@ -127,11 +108,8 @@ void GoalPublisherNode::goalNameCallback(const std_msgs::String::ConstPtr& name)
       ROS_ERROR_STREAM("Box id is outside the available range, please select a smaller id!");
       return;
     }
-
-    // Get the random target in the packing area
-    // random_goal_in_packing_area = getRandomTargetInPackingArea(packing_area);
     
-    P_world_goal = getRandomTargetInPackingArea(packing_area);
+    P_world_goal = getRandomTargetInPackingArea();
     // P_world_goal = box_poses_[goal_box_id - 1];
   }
   else
@@ -163,7 +141,11 @@ void GoalPublisherNode::goalNameCallback(const std_msgs::String::ConstPtr& name)
   tf2::doTransform(this->pose_world_robot_, this->pose_map_robot_, transform_map_world);
 
   // Publish goal pose in map frame 
-  if (this->goal_type_ != "box")
+  if (this->goal_type_ == "box")
+  {
+    this->pub_goal_.publish(P_map_goal);
+  }
+  else
   {
     this->pub_goal_.publish(P_map_goal);
   }
@@ -200,21 +182,23 @@ void GoalPublisherNode::boxMarkersCallback(const visualization_msgs::MarkerArray
   return;
 };
 
-geometry_msgs::PoseStamped GoalPublisherNode::getRandomTargetInPackingArea(const PackingArea& area)
+geometry_msgs::PoseStamped GoalPublisherNode::getRandomTargetInPackingArea()
 {
-  std::random_device rd;
-  std::mt19937 gen(rd());
-  std::uniform_real_distribution<double> x_dist(area.x_min, area.x_max);
-  std::uniform_real_distribution<double> y_dist(area.y_min, area.y_max);
+  // before -> x: 8.0 to 16.0, y: -6.25 to 1.0, yaw: -3.14 to 3.14
+  // after -> x: 8.0 to 16.0, y: -6.25 to 1.0, yaw: -3.14 to 3.14
+  const double x = std::round((static_cast<double>(std::rand()) / RAND_MAX * 8.0 + 8) * 10) / 10.0;
+  const double y = std::round((-6.25 + static_cast<double>(std::rand()) / RAND_MAX * 7.25) * 10) / 10.0;
+  const double yaw = std::round((static_cast<double>(std::rand()) / RAND_MAX * 6.28 - 3.14) * 10) / 10.0;
+  // nh_.getParam("/me5413_world/frame_id", this->world_frame_);
 
-  const double x = x_dist(gen);
-  const double y = y_dist(gen);
-  const double yaw = area.yaw;
+  std::cout << "Packing area dimensions: "
+        << "x = " << x << ", "
+        << "y = " << y << ", "
+        << "yaw = " << yaw << std::endl;
 
   tf2::Quaternion q;
   q.setRPY(0, 0, yaw);
   q.normalize();
-
   geometry_msgs::PoseStamped random_goal_in_packing_area;
   random_goal_in_packing_area.pose.position.x = x;
   random_goal_in_packing_area.pose.position.y = y;
@@ -234,6 +218,11 @@ geometry_msgs::PoseStamped GoalPublisherNode::getGoalPoseFromConfig(const std::s
   nh_.getParam("/me5413_world" + name + "/y", y);
   nh_.getParam("/me5413_world" + name + "/yaw", yaw);
   nh_.getParam("/me5413_world/frame_id", this->world_frame_);
+
+  std::cout << "Other area dimensions: "
+      << "x = " << x << ", "
+      << "y = " << y << ", "
+      << "yaw = " << yaw << std::endl;
 
   tf2::Quaternion q;
   q.setRPY(0, 0, yaw);

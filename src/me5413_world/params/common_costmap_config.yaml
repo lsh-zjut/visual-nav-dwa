@@ -19,6 +19,10 @@ inflation_layer:
   enabled:              true
   cost_scaling_factor:  3.0  # exponential rate at which the obstacle cost drops off (default: 10)
   inflation_radius:     0.35  # max. distance from an obstacle at which costs are incurred for planning paths.
+  
+prohibition_layer:
+  enabled: true 
+  visualize: false # 隐藏虚拟墙显示
 
 static_layer:
   enabled:              true

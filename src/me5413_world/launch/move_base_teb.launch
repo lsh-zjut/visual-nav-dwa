@@ -11,6 +11,8 @@
     <rosparam file="$(find me5413_world)/params/base_local_planner_params.yaml" command="load" />
     <rosparam file="$(find me5413_world)/params/move_base_params.yaml" command="load" />
     
+    <rosparam file="$(find me5413_world)/params/prohibition_areas.yaml" command="load" ns="global_costmap/prohibition_layer" />
+    <rosparam file="$(find me5413_world)/params/prohibition_areas.yaml" command="load" ns="local_costmap/prohibition_layer" />
 
     <rosparam file="$(find me5413_world)/params/teb_planner_param.yaml" command="load" />
     <rosparam file="$(find me5413_world)/params/costmap_converter_params.yaml" command="load" />

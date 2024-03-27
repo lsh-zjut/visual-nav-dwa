@@ -31,6 +31,8 @@
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <visualization_msgs/MarkerArray.h>
 
+#include <random>
+
 namespace me5413_world 
 {
 
@@ -48,6 +50,14 @@ class GoalPublisherNode
   void boxMarkersCallback(const visualization_msgs::MarkerArray::ConstPtr& box_markers);
   
   tf2::Transform convertPoseToTransform(const geometry_msgs::Pose& pose);
+  // -----------------------------------------
+  struct PackingArea
+  {
+    double x_min, x_max, y_min, y_max;
+    double yaw;
+  };
+  geometry_msgs::PoseStamped getRandomTargetInPackingArea(const PackingArea& area);
+  // -----------------------------------------
   geometry_msgs::PoseStamped getGoalPoseFromConfig(const std::string& name);
   std::pair<double, double> calculatePoseError(const geometry_msgs::Pose& pose_robot, const geometry_msgs::Pose& pose_goal);
 

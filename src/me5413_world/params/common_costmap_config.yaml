@@ -22,7 +22,6 @@ inflation_layer:
   
 prohibition_layer:
   enabled: true 
-  visualize: false # 隐藏虚拟墙显示
 
 static_layer:
   enabled:              true

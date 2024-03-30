@@ -24,6 +24,8 @@ GoalPublisherNode::GoalPublisherNode() : tf2_listener_(tf2_buffer_)
   this->sub_goal_name_ = nh_.subscribe("/rviz_panel/goal_name", 1, &GoalPublisherNode::goalNameCallback, this);
   this->sub_goal_pose_ = nh_.subscribe("/move_base_simple/goal", 1, &GoalPublisherNode::goalPoseCallback, this);
   this->sub_box_markers_ = nh_.subscribe("/gazebo/ground_truth/box_markers", 1, &GoalPublisherNode::boxMarkersCallback, this);
+  this->sub_move_base_status_ = nh_.subscribe("/move_base/status", 10, &GoalPublisherNode::moveBaseStatusCallback, this);
+  this->sub_map_ = nh_.subscribe("/move_base/global_costmap/costmap", 10, &GoalPublisherNode::globalCostmapCallback, this);
   
   // Initialization
   this->robot_frame_ = "base_link";
@@ -33,6 +35,8 @@ GoalPublisherNode::GoalPublisherNode() : tf2_listener_(tf2_buffer_)
   this->absolute_heading_error_.data = 0.0;
   this->relative_position_error_.data = 0.0;
   this->relative_heading_error_.data = 0.0;
+  this->last_responded_goal_id_ = "";
+  this->globalCostmapData=nav_msgs::OccupancyGrid();
 };
 
 void GoalPublisherNode::timerCallback(const ros::TimerEvent&)
@@ -141,17 +145,58 @@ void GoalPublisherNode::goalNameCallback(const std_msgs::String::ConstPtr& name)
   tf2::doTransform(this->pose_world_robot_, this->pose_map_robot_, transform_map_world);
 
   // Publish goal pose in map frame 
-  if (this->goal_type_ == "box")
-  {
-    this->pub_goal_.publish(P_map_goal);
-  }
-  else
-  {
-    this->pub_goal_.publish(P_map_goal);
-  }
+  this->pub_goal_.publish(P_map_goal);
 
   return;
 };
+
+// 假设这是你监测 move_base 状态的回调函数
+void GoalPublisherNode::moveBaseStatusCallback(const actionlib_msgs::GoalStatusArray& status) 
+{
+
+    // 遍历状态列表来检查是否有目标已完成或不可到达
+    for (const auto& goalStatus : status.status_list) 
+    {
+      if (goalStatus.goal_id.id != this->last_responded_goal_id_)
+      {
+        if (goalStatus.status == actionlib_msgs::GoalStatus::SUCCEEDED || 
+          goalStatus.status == actionlib_msgs::GoalStatus::ABORTED) 
+        {
+          if (this->goal_type_ == "box") 
+          {
+            this->last_responded_goal_id_ = goalStatus.goal_id.id;
+
+            // 条件符合，执行随机游走逻辑
+            geometry_msgs::PoseStamped newGoal = this->getRandomTargetInPackingArea();
+            
+            // 进行必要的转换
+            geometry_msgs::TransformStamped transform_map_world;
+            try 
+            {
+              transform_map_world = this->tf2_buffer_.lookupTransform(this->map_frame_, this->world_frame_, ros::Time(0));
+            } 
+            catch (tf2::TransformException& ex) 
+            {
+              ROS_WARN("%s", ex.what());
+              return;
+            }
+
+            // 将新目标转换到地图坐标系
+            geometry_msgs::PoseStamped P_map_goal;
+            tf2::doTransform(newGoal, P_map_goal, transform_map_world);
+            P_map_goal.header.stamp = ros::Time::now();
+            P_map_goal.header.frame_id = map_frame_;
+
+            // 发布新目标
+            this->pub_goal_.publish(P_map_goal);
+
+            break;
+          }
+            
+        }
+      }
+    }
+}
 
 void GoalPublisherNode::goalPoseCallback(const geometry_msgs::PoseStamped::ConstPtr& goal_pose)
 {
@@ -182,14 +227,62 @@ void GoalPublisherNode::boxMarkersCallback(const visualization_msgs::MarkerArray
   return;
 };
 
+void GoalPublisherNode::globalCostmapCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg)
+{
+  this->globalCostmapData = *msg; // 更新全局地图数据
+}
+
+bool GoalPublisherNode::isPointInObstacle(double x, double y) 
+{
+    // 计算点在地图数据数组中的坐标
+    float resolution = this->globalCostmapData.info.resolution;
+    int map_x = static_cast<int>((x - this->globalCostmapData.info.origin.position.x) / resolution);
+    int map_y = static_cast<int>((y - this->globalCostmapData.info.origin.position.y) / resolution);
+    std::cout << "resolution: " << resolution << std::endl;
+
+    // 定义检查半径
+    double check_radius = 0.2; // 半径为0.2
+    int radius_cells = static_cast<int>(check_radius / resolution);
+
+    for (int dx = -radius_cells; dx <= radius_cells; dx++) {
+        for (int dy = -radius_cells; dy <= radius_cells; dy++) {
+            int check_x = map_x + dx;
+            int check_y = map_y + dy;
+
+            // 确保检查的点在圆的范围内
+            if (dx * dx + dy * dy <= radius_cells * radius_cells) {
+                // 检查坐标是否在地图范围内
+                if (check_x < 0 || check_x >= this->globalCostmapData.info.width || check_y < 0 || check_y >= this->globalCostmapData.info.height) {
+                    continue; // 如果不在地图范围内，则忽略该点
+                }
+
+                // 计算一维数组中的索引
+                int index = check_y * this->globalCostmapData.info.width + check_x;
+
+                // 检查该点是否为障碍物
+                if (this->globalCostmapData.data[index] >= 50) {
+                    return true; // 如果任何一个点是障碍物，则返回true
+                }
+            }
+        }
+    }
+
+    return false; // 如果周围没有障碍物，则返回false
+}
+
 geometry_msgs::PoseStamped GoalPublisherNode::getRandomTargetInPackingArea()
 {
-  // before -> x: 8.0 to 16.0, y: -6.25 to 1.0, yaw: -3.14 to 3.14
-  // after -> x: 8.0 to 16.0, y: -6.25 to 1.0, yaw: -3.14 to 3.14
-  const double x = std::round((static_cast<double>(std::rand()) / RAND_MAX * 8.0 + 8) * 10) / 10.0;
-  const double y = std::round((-6.25 + static_cast<double>(std::rand()) / RAND_MAX * 7.25) * 10) / 10.0;
-  const double yaw = std::round((static_cast<double>(std::rand()) / RAND_MAX * 6.28 - 3.14) * 10) / 10.0;
-  // nh_.getParam("/me5413_world/frame_id", this->world_frame_);
+  // x: 8.0 to 16.0, y: -6.25 to 1.0, yaw: -3.14 to 3.14
+  double x, y, yaw;
+  bool inObstacle = false;
+  
+  do {
+    x = std::round((static_cast<double>(std::rand()) / RAND_MAX * 8.0 + 8) * 10) / 10.0;
+    y = std::round((-6.25 + static_cast<double>(std::rand()) / RAND_MAX * 7.25) * 10) / 10.0;
+    yaw = std::round((static_cast<double>(std::rand()) / RAND_MAX * 6.28 - 3.14) * 10) / 10.0;
+    
+    inObstacle = isPointInObstacle(x, y);
+  } while (inObstacle);
 
   std::cout << "Packing area dimensions: "
         << "x = " << x << ", "

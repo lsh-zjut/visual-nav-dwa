@@ -32,6 +32,9 @@
 #include <visualization_msgs/MarkerArray.h>
 
 #include <cmath>
+#include <nav_msgs/GetPlan.h>
+#include <actionlib_msgs/GoalStatusArray.h>
+#include <nav_msgs/OccupancyGrid.h>
 
 namespace me5413_world 
 {
@@ -51,6 +54,9 @@ class GoalPublisherNode
   
   tf2::Transform convertPoseToTransform(const geometry_msgs::Pose& pose);
   // -----------------------------------------
+  void globalCostmapCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg);
+  bool isPointInObstacle(double x, double y);
+  void moveBaseStatusCallback(const actionlib_msgs::GoalStatusArray& status);
   geometry_msgs::PoseStamped getRandomTargetInPackingArea();
   // -----------------------------------------
   geometry_msgs::PoseStamped getGoalPoseFromConfig(const std::string& name);
@@ -70,6 +76,12 @@ class GoalPublisherNode
   ros::Subscriber sub_goal_name_;
   ros::Subscriber sub_goal_pose_;
   ros::Subscriber sub_box_markers_;
+  // -----------------------------------------
+  ros::Subscriber sub_map_;
+  ros::Subscriber sub_move_base_status_; // 订阅move_base状态
+  std::string last_responded_goal_id_;
+  nav_msgs::OccupancyGrid globalCostmapData;
+  // -----------------------------------------
 
   tf2_ros::Buffer tf2_buffer_;
   tf2_ros::TransformListener tf2_listener_;

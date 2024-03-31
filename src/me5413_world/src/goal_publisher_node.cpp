@@ -241,7 +241,7 @@ bool GoalPublisherNode::isPointInObstacle(double x, double y)
     std::cout << "resolution: " << resolution << std::endl;
 
     // 定义检查半径
-    double check_radius = 0.2; // 半径为0.2
+    double check_radius = 0.25; // 半径为0.25
     int radius_cells = static_cast<int>(check_radius / resolution);
 
     for (int dx = -radius_cells; dx <= radius_cells; dx++) {

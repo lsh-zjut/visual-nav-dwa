@@ -93,11 +93,11 @@ class Detector(object):
         detection.source_img = ros_img
         # Publish the message
         publisher.publish(detection)
+        self.matrix_pub.publish("A0285282X")
 
     def detect(self, image):
-        # camera:
-        # height: 512
-        # width: 640
+        # camera: 512, 640
+        # template: 106, 137
 
         image_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) 
         processed_image = image_gray

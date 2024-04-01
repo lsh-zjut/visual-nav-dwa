@@ -26,6 +26,7 @@ GoalPublisherNode::GoalPublisherNode() : tf2_listener_(tf2_buffer_)
   this->sub_box_markers_ = nh_.subscribe("/gazebo/ground_truth/box_markers", 1, &GoalPublisherNode::boxMarkersCallback, this);
   this->sub_move_base_status_ = nh_.subscribe("/move_base/status", 10, &GoalPublisherNode::moveBaseStatusCallback, this);
   this->sub_map_ = nh_.subscribe("/move_base/global_costmap/costmap", 10, &GoalPublisherNode::globalCostmapCallback, this);
+  this->sub_done_ = nh_.subscribe("/me5413/done", 10, &GoalPublisherNode::doneCallback, this);
   
   // Initialization
   this->robot_frame_ = "base_link";
@@ -37,6 +38,7 @@ GoalPublisherNode::GoalPublisherNode() : tf2_listener_(tf2_buffer_)
   this->relative_heading_error_.data = 0.0;
   this->last_responded_goal_id_ = "";
   this->globalCostmapData=nav_msgs::OccupancyGrid();
+  this->done = "false";
 };
 
 void GoalPublisherNode::timerCallback(const ros::TimerEvent&)
@@ -150,6 +152,11 @@ void GoalPublisherNode::goalNameCallback(const std_msgs::String::ConstPtr& name)
   return;
 };
 
+void GoalPublisherNode::doneCallback(const std_msgs::String::ConstPtr& done)
+{
+  this->done = done->data;
+}
+
 // 假设这是你监测 move_base 状态的回调函数
 void GoalPublisherNode::moveBaseStatusCallback(const actionlib_msgs::GoalStatusArray& status) 
 {
@@ -162,7 +169,7 @@ void GoalPublisherNode::moveBaseStatusCallback(const actionlib_msgs::GoalStatusA
         if (goalStatus.status == actionlib_msgs::GoalStatus::SUCCEEDED || 
           goalStatus.status == actionlib_msgs::GoalStatus::ABORTED) 
         {
-          if (this->goal_type_ == "box") 
+          if (this->goal_type_ == "box", this->done == "false") 
           {
             this->last_responded_goal_id_ = goalStatus.goal_id.id;
 

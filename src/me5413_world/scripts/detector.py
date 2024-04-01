@@ -27,19 +27,32 @@ class Detector(object):
         self.bridge = CvBridge()
         self.image_sub = rospy.Subscriber("/front/rgb/image_raw", Image, self.input_img_callback)
         self.template_sub = rospy.Subscriber("/rviz_panel/goal_name", String, self.template_callback)
+        self.done_sub = rospy.Subscriber("/me5413/done", String, self.done_callback)
         # Template for matching, obtained from the first frame.
         self.template = None
         self.template_coords = firsttrack_list[0]  # Initial tracking coordinates (x, y, w, h)
         self.template_path = template_path
+        self.done = False
 
         # Initialize a publisher for sending msg
         self.matrix_pub = rospy.Publisher("/me5413/student_matrix", String, queue_size=10)
         self.detected_pub = rospy.Publisher("/me5413/detected", Detection2D, queue_size=10)
 
+    def done_callback(self, data):
+        self.done = data.data
+        if self.done == "true":
+            self.template = None
+            rospy.loginfo("Detection closing...")
+
     def template_callback(self, data):
         if "box" not in data.data:
-            rospy.loginfo("Message does not contain 'box'. detection closing...")
+            self.template = None
             return
+        
+        if self.done == "true":
+            self.template = None
+            return
+        
         try:
             # 加载模板图像
             template_img = cv2.imread(self.template_path)
@@ -55,6 +68,13 @@ class Detector(object):
 
     def input_img_callback(self, data):
         if self.template is None:
+            detection = Detection2D()
+            detection.bbox.size_x = 0
+            detection.bbox.size_y = 0
+            detection.bbox.center.x = 0
+            detection.bbox.center.y = 0
+            detection.source_img = data
+            self.detected_pub.publish(detection)
             return
         try:
             cv_image = self.bridge.imgmsg_to_cv2(data, "8UC3")
@@ -76,7 +96,7 @@ class Detector(object):
     #             # Publish the string message
     #             self.matrix_pub.publish("A0285282X")
 
-    def publish_detection(self, x, y, width, height, img, publisher):
+    def publish_detection(self, x, y, width, height, img):
         detection = Detection2D()
         # Configure your Detection2D message
         # For example, setting the bounding box size and position
@@ -92,7 +112,7 @@ class Detector(object):
         # Attach image itself to the message as image_raw
         detection.source_img = ros_img
         # Publish the message
-        publisher.publish(detection)
+        self.detected_pub.publish(detection)
         self.matrix_pub.publish("A0285282X")
 
     def detect(self, image):
@@ -136,7 +156,7 @@ class Detector(object):
         else:
             x_d, y_d, width, height = 0, 0, 0, 0
 
-        self.publish_detection(x_d, y_d, width, height, image, self.detected_pub)
+        self.publish_detection(x_d, y_d, width, height, image)
 
         return image
 

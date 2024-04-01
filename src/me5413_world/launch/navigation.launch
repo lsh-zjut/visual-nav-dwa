@@ -19,5 +19,6 @@
   <node ns="me5413_world" pkg="me5413_world" type="goal_publisher_node" name="goal_publisher_node" output="screen" />
   <node pkg="me5413_world" type="detector.py" name="Detector" output="screen" />
   <node pkg="me5413_world" type="viz.py" name="ObjectDetector" output="screen" />
+  <node pkg="me5413_world" type="roi_coordinate_calculator.py" name="ROICoordinateCalculator" output="screen" />
 
 </launch>

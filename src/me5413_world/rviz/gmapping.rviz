@@ -233,7 +233,7 @@ Visualization Manager:
           fixed_frame_orientation: true
         - Class: rviz/Image
           Enabled: true
-          Image Topic: /front/image_raw
+          Image Topic: /front/rgb/image_raw
           Max Value: 1
           Median window: 5
           Min Value: 0

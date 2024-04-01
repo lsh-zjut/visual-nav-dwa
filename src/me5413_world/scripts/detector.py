@@ -25,7 +25,7 @@ firsttrack_list.append((0, 0, 106, 137))
 class Detector(object):
     def __init__(self):
         self.bridge = CvBridge()
-        self.image_sub = rospy.Subscriber("/front/image_raw", Image, self.input_img_callback)
+        self.image_sub = rospy.Subscriber("/front/rgb/image_raw", Image, self.input_img_callback)
         self.template_sub = rospy.Subscriber("/rviz_panel/goal_name", String, self.template_callback)
         # Template for matching, obtained from the first frame.
         self.template = None

@@ -9,7 +9,7 @@
             <visual>
                 <origin xyz="0 0 0" rpy="0 0 ${M_PI/2}"/>
                 <geometry>
-                    <mesh filename="package://turtlebot3_description/meshes/kinect.dae" scale="0.4 0.4 0.4" />
+                    <mesh filename="package://jackal_description/meshes/kinect.dae" scale="0.4 0.4 0.4" />
                 </geometry>
             </visual>
             <collision>

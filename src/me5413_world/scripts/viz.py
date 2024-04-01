@@ -5,13 +5,10 @@ import cv2
 from cv_bridge import CvBridge
 from vision_msgs.msg import Detection2D
 
-category = "detected" # Change this to "detected" to visualize groundtruth
-# restart the whole program before changing the category to groundtruth
-
 class ObjectDetector:
     def __init__(self):
         self.bridge = CvBridge()
-        self.detection_sub = rospy.Subscriber(f"/me5413/{category}", Detection2D, self.callback)
+        self.detection_sub = rospy.Subscriber(f"/me5413/detected", Detection2D, self.callback)
 
     def callback(self, data):
         cv_image = self.bridge.imgmsg_to_cv2(data.source_img, "8UC3")

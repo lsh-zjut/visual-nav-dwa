@@ -12,7 +12,7 @@ from vision_msgs.msg import Detection2D
 template_path = "/home/amin/ME5413_Final_Project/src/me5413_world/scripts/3.png"
 firsttrack_list = []
 firsttrack_list.append((0, 0, 106, 137))
-    
+
 # def preprocess_image(image):
 #     image_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 #     blurred = cv2.GaussianBlur(image_gray, (3, 3), 0)

@@ -41,6 +41,7 @@ include_directories(
 catkin_install_python(PROGRAMS 
   scripts/detector.py
   scripts/viz.py
+  scripts/roi_coordinate_calculator.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

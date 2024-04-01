@@ -1,13 +1,12 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="kinect_camera">
- 
     <xacro:macro name="kinect_camera" params="prefix:=camera">
         <!-- Create kinect reference frame -->
         <!-- Add mesh for kinect -->
         <link name="${prefix}_kinect">
             <origin xyz="0 0 0" rpy="0 0 0"/>
             <visual>
-                <origin xyz="0 0 0" rpy="0 0 ${M_PI/2}"/>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
                 <geometry>
                     <mesh filename="package://jackal_description/meshes/kinect.dae" scale="0.4 0.4 0.4" />
                 </geometry>

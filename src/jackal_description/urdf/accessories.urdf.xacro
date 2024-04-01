@@ -438,7 +438,7 @@
       </joint>
 
       <joint name="${prefix}_camera_bracket_joint" type="fixed">
-        <origin xyz="0.020 0 0.0245" rpy="0 0 0" />
+        <origin xyz="0.020 0 -0.0245" rpy="0 0 0" />
         <parent link="${prefix}_camera_beam" />
         <child link="${prefix}_kinect" />
       </joint>

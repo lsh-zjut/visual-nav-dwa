@@ -8,8 +8,10 @@ from queue import Queue
 from threading import Thread
 from std_msgs.msg import String
 from vision_msgs.msg import Detection2D
+import os
 
-template_path = "/home/amin/ME5413_Final_Project/src/me5413_world/scripts/3.png"
+template_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "3.png")
+# template_path = "me5413_world/scripts/3.png"
 firsttrack_list = []
 firsttrack_list.append((0, 0, 106, 137))
 
@@ -27,7 +29,7 @@ class Detector(object):
         self.bridge = CvBridge()
         self.image_sub = rospy.Subscriber("/front/rgb/image_raw", Image, self.input_img_callback)
         self.template_sub = rospy.Subscriber("/rviz_panel/goal_name", String, self.template_callback)
-        self.done_sub = rospy.Subscriber("/me5413/done", String, self.done_callback)
+        # self.done_sub = rospy.Subscriber("/me5413/done", String, self.done_callback)
         # Template for matching, obtained from the first frame.
         self.template = None
         self.template_coords = firsttrack_list[0]  # Initial tracking coordinates (x, y, w, h)
@@ -38,20 +40,20 @@ class Detector(object):
         self.matrix_pub = rospy.Publisher("/me5413/student_matrix", String, queue_size=10)
         self.detected_pub = rospy.Publisher("/me5413/detected", Detection2D, queue_size=10)
 
-    def done_callback(self, data):
-        self.done = data.data
-        if self.done == "true":
-            self.template = None
-            rospy.loginfo("Detection closing...")
+    # def done_callback(self, data):
+    #     self.done = data.data
+    #     if self.done == "true":
+    #         self.template = None
+    #         rospy.loginfo("Detection closing...")
 
     def template_callback(self, data):
         if "box" not in data.data:
             self.template = None
             return
         
-        if self.done == "true":
-            self.template = None
-            return
+        # if self.done == "true":
+        #     self.template = None
+        #     return
         
         try:
             # 加载模板图像

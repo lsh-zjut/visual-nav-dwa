@@ -21,7 +21,7 @@ class ROICoordinateCalculator:
         
         self.goal_pub = rospy.Publisher('/move_base_simple/goal', PoseStamped, queue_size=10)
         self.goal_name_pub = rospy.Publisher('/rviz_panel/goal_name', String, queue_size=10)
-        self.done_pub = rospy.Publisher('/me5413/done', String, queue_size=10)
+        # self.done_pub = rospy.Publisher('/me5413/done', String, queue_size=10)
 
         self.bridge = CvBridge()
         self.camera_info = None
@@ -60,16 +60,7 @@ class ROICoordinateCalculator:
         
         X = (center.x - cx) * depth / fx
         Y = (center.y - cy) * depth / fy
-        Z = depth - 0.2  
-        # TODO: 请根据实际情况调整Z值，使得机器人能够在目标前停下
-        # The specific method is depth subtract 0.3
-        # Then, check the point availability
-        # If the point is available, publish the goal pose
-        # If not, subtract 0.05 from the depth and check again
-        # Repeat until the point is available
-
-        # Transform the point to the map frame before cheking and publishing
-        # Subscribe the /move_base/global_costmap/costmap so that you can get the availability of the point
+        Z = depth - 0.7
 
         point_stamped = PointStamped()
         current_time = rospy.Time.now()
@@ -95,7 +86,11 @@ class ROICoordinateCalculator:
             rospy.loginfo("Target position successfully calculated: x={}, y={}, z={}".format(goal_pose.pose.position.x, goal_pose.pose.position.y, goal_pose.pose.position.z))
 
             self.goal_pub.publish(goal_pose)
-            self.done_pub.publish(String("true"))
+            # self.done_pub.publish(String("true"))
+
+            goal_name_msg = String()
+            goal_name_msg.data = "/done_1"
+            self.goal_name_pub.publish(goal_name_msg)
 
             return
         except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException) as e:

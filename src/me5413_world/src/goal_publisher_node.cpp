@@ -118,6 +118,10 @@ void GoalPublisherNode::goalNameCallback(const std_msgs::String::ConstPtr& name)
     P_world_goal = getRandomTargetInPackingArea();
     // P_world_goal = box_poses_[goal_box_id - 1];
   }
+  else if (this->goal_type_ == "done")
+  {
+   return;
+  }
   else
   {
     // Get the Pose of the goal in world frame
@@ -169,7 +173,8 @@ void GoalPublisherNode::moveBaseStatusCallback(const actionlib_msgs::GoalStatusA
         if (goalStatus.status == actionlib_msgs::GoalStatus::SUCCEEDED || 
           goalStatus.status == actionlib_msgs::GoalStatus::ABORTED) 
         {
-          if (this->goal_type_ == "box", this->done == "false") 
+          // std::cout << "Goal Type: " << this->goal_type_ << std::endl;
+          if (this->goal_type_ == "box") 
           {
             this->last_responded_goal_id_ = goalStatus.goal_id.id;
 

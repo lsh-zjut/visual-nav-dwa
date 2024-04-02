@@ -1,0 +1,17 @@
+BasedOnStyle: Google
+IndentWidth: 2
+ColumnLimit: 0
+AccessModifierOffset: -2
+PointerAlignment: Left
+AlignTrailingComments: true
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+BinPackArguments: true
+BinPackParameters: true
+BreakBeforeBraces: Allman
+DerivePointerAlignment: false
+NamespaceIndentation: All
+ReflowComments: true
+SortIncludes: false
+TabWidth: 2
+UseTab: Never

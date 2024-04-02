@@ -54,7 +54,6 @@ class GoalPublisherNode
   
   tf2::Transform convertPoseToTransform(const geometry_msgs::Pose& pose);
   // -----------------------------------------
-  void doneCallback(const std_msgs::String::ConstPtr& done);
   void globalCostmapCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg);
   bool isPointInObstacle(double x, double y);
   void moveBaseStatusCallback(const actionlib_msgs::GoalStatusArray& status);
@@ -78,11 +77,9 @@ class GoalPublisherNode
   ros::Subscriber sub_goal_pose_;
   ros::Subscriber sub_box_markers_;
   // -----------------------------------------
-  ros::Subscriber sub_done_;
   ros::Subscriber sub_map_;
-  ros::Subscriber sub_move_base_status_; // 订阅move_base状态
+  ros::Subscriber sub_move_base_status_;
   std::string last_responded_goal_id_;
-  std::string done;
   nav_msgs::OccupancyGrid globalCostmapData;
   // -----------------------------------------
 

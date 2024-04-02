@@ -15,21 +15,13 @@ template_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "3.png"
 firsttrack_list = []
 firsttrack_list.append((0, 0, 106, 137))
 
-# def preprocess_image(image):
-#     image_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-#     blurred = cv2.GaussianBlur(image_gray, (3, 3), 0)
-#     equalized = cv2.equalizeHist(blurred)
-#     binary_image = cv2.adaptiveThreshold(equalized, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
-#                                     cv2.THRESH_BINARY, 11, 0)
-
-#     return preprocessed_image
 
 class Detector(object):
     def __init__(self):
         self.bridge = CvBridge()
         self.image_sub = rospy.Subscriber("/front/rgb/image_raw", Image, self.input_img_callback)
         self.template_sub = rospy.Subscriber("/rviz_panel/goal_name", String, self.template_callback)
-        # self.done_sub = rospy.Subscriber("/me5413/done", String, self.done_callback)
+
         # Template for matching, obtained from the first frame.
         self.template = None
         self.template_coords = firsttrack_list[0]  # Initial tracking coordinates (x, y, w, h)
@@ -40,23 +32,13 @@ class Detector(object):
         self.matrix_pub = rospy.Publisher("/me5413/student_matrix", String, queue_size=10)
         self.detected_pub = rospy.Publisher("/me5413/detected", Detection2D, queue_size=10)
 
-    # def done_callback(self, data):
-    #     self.done = data.data
-    #     if self.done == "true":
-    #         self.template = None
-    #         rospy.loginfo("Detection closing...")
-
     def template_callback(self, data):
         if "box" not in data.data:
             self.template = None
             return
-        
-        # if self.done == "true":
-        #     self.template = None
-        #     return
-        
+
         try:
-            # 加载模板图像
+            # Read the template img from the path
             template_img = cv2.imread(self.template_path)
             if template_img is None:
                 rospy.logerr("Failed to load template image from path: {}".format(self.template_path))
@@ -64,7 +46,7 @@ class Detector(object):
                 rospy.loginfo("Template image loaded successfully from path: {}".format(self.template_path))
                 x, y, w, h = self.template_coords
                 self.template = template_img[y:y+h, x:x+w]
-                
+
         except Exception as e:
             rospy.logerr("Error loading template image: {}".format(e))
 
@@ -81,22 +63,8 @@ class Detector(object):
         try:
             cv_image = self.bridge.imgmsg_to_cv2(data, "8UC3")
             self.detect(cv_image)
-            # self.frame_queue.put(cv_image)
         except CvBridgeError as e:
             print(e)
-
-    # def process_frames(self):
-    #     while not self.stop_thread:
-    #         if not self.frame_queue.empty():
-    #             cv_image = self.frame_queue.get()
-    #             if self.template is None:
-    #                 # Initialize template with the first frame using initial coordinates.
-    #                 self.prev = self.template_coords
-    #                 self.prev_prev = self.prev
-    #             else:
-    #                 frame = self.detect(cv_image)
-    #             # Publish the string message
-    #             self.matrix_pub.publish("A0285282X")
 
     def publish_detection(self, x, y, width, height, img):
         detection = Detection2D()
@@ -121,7 +89,7 @@ class Detector(object):
         # camera: 512, 640
         # template: 106, 137
 
-        image_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) 
+        image_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         processed_image = image_gray
         template_gray = cv2.cvtColor(self.template, cv2.COLOR_BGR2GRAY)
         processed_template = template_gray
@@ -133,24 +101,24 @@ class Detector(object):
         best_max_loc = None
 
         for scale in scales:
-            # 计算新的尺寸
+            # Calculate the new width and height
             new_width = int(original_width * scale)
             new_height = int(original_height * scale)
 
-            # 调整模板大小
-            resized_template = cv2.resize(processed_template, (new_width, new_height), interpolation=cv2.INTER_AREA if scale < 1.0 else cv2.INTER_CUBIC)
+            # Adjust the template size
+            resized_template = cv2.resize(processed_template, (new_width, new_height),
+                                          interpolation=cv2.INTER_AREA if scale < 1.0 else cv2.INTER_CUBIC)
 
-            # 使用调整后的模板进行匹配
+            # Use the new template to match the image
             result = cv2.matchTemplate(processed_image, resized_template, cv2.TM_CCOEFF_NORMED)
-
-            # 获取最大匹配值的位置
             _, max_val, _, max_loc = cv2.minMaxLoc(result)
-            
+
             if max_val > max_match_val:
                 max_match_val = max_val
                 best_scale = scale
                 best_max_loc = max_loc
 
+        # Only the match with score > 0.75 is considered as a valid detection
         if max_match_val > 0.75:
             x_d, y_d = best_max_loc
             width = int(original_width * best_scale)
@@ -162,6 +130,7 @@ class Detector(object):
 
         return image
 
+
 def main():
     rospy.init_node('detector', anonymous=True)
     det = Detector()
@@ -172,6 +141,7 @@ def main():
         det.stop_thread = True
         det.process_thread.join()
     cv2.destroyAllWindows()
+
 
 if __name__ == '__main__':
     main()

@@ -5,6 +5,7 @@ import cv2
 from cv_bridge import CvBridge
 from vision_msgs.msg import Detection2D
 
+
 class ObjectDetector:
     def __init__(self):
         self.bridge = CvBridge()
@@ -22,6 +23,7 @@ class ObjectDetector:
         cv2.imshow("Image window", cv_image)
         cv2.waitKey(3)
 
+
 def main():
     rospy.init_node('object_detector', anonymous=True)
     od = ObjectDetector()
@@ -30,6 +32,7 @@ def main():
     except KeyboardInterrupt:
         print("Shutting down")
     cv2.destroyAllWindows()
+
 
 if __name__ == '__main__':
     main()

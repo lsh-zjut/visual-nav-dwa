@@ -21,6 +21,7 @@ class ROICoordinateCalculator:
 
         self.goal_pub = rospy.Publisher('/move_base_simple/goal', PoseStamped, queue_size=10)
         self.goal_name_pub = rospy.Publisher('/rviz_panel/goal_name', String, queue_size=10)
+        self.calculated_target_pub = rospy.Publisher('/calculated/target', PoseStamped, queue_size=10)
 
         self.bridge = CvBridge()
         self.camera_info = None
@@ -60,6 +61,8 @@ class ROICoordinateCalculator:
         X = (center.x - cx) * depth / fx
         Y = (center.y - cy) * depth / fy
         Z = depth - 1.0  # Subtract 1.0 to avoid collision with the target
+        if Z < 0:
+            Z = 0.0
 
         point_stamped = PointStamped()
         current_time = rospy.Time.now()
@@ -90,6 +93,7 @@ class ROICoordinateCalculator:
 
             # Publish the goal pose
             self.goal_pub.publish(goal_pose)
+            self.calculated_target_pub.publish(goal_pose)
             # Publish the goal name to substitute the goal name from the last goal
             goal_name_msg = String()
             goal_name_msg.data = "/done_1"

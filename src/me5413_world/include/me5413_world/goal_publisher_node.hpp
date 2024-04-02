@@ -32,7 +32,7 @@
 #include <visualization_msgs/MarkerArray.h>
 
 #include <cmath>
-#include <nav_msgs/GetPlan.h>
+#include <mutex>
 #include <actionlib_msgs/GoalStatusArray.h>
 #include <nav_msgs/OccupancyGrid.h>
 
@@ -58,6 +58,7 @@ class GoalPublisherNode
   bool isPointInObstacle(double x, double y);
   void moveBaseStatusCallback(const actionlib_msgs::GoalStatusArray& status);
   geometry_msgs::PoseStamped getRandomTargetInPackingArea();
+  void calculatedTargetCallback(const geometry_msgs::PoseStamped& target);
   // -----------------------------------------
   geometry_msgs::PoseStamped getGoalPoseFromConfig(const std::string& name);
   std::pair<double, double> calculatePoseError(const geometry_msgs::Pose& pose_robot, const geometry_msgs::Pose& pose_goal);
@@ -79,8 +80,13 @@ class GoalPublisherNode
   // -----------------------------------------
   ros::Subscriber sub_map_;
   ros::Subscriber sub_move_base_status_;
+  ros::Subscriber sub_calculated_target_;
+
+  ros::Time last_goal_time_;
   std::string last_responded_goal_id_;
   nav_msgs::OccupancyGrid globalCostmapData;
+  geometry_msgs::PoseStamped gt_box_pose;
+  geometry_msgs::PoseStamped calculated_target_;
   // -----------------------------------------
 
   tf2_ros::Buffer tf2_buffer_;

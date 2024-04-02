@@ -26,7 +26,7 @@ GoalPublisherNode::GoalPublisherNode() : tf2_listener_(tf2_buffer_)
   this->sub_box_markers_ = nh_.subscribe("/gazebo/ground_truth/box_markers", 1, &GoalPublisherNode::boxMarkersCallback, this);
   this->sub_move_base_status_ = nh_.subscribe("/move_base/status", 10, &GoalPublisherNode::moveBaseStatusCallback, this);
   this->sub_map_ = nh_.subscribe("/move_base/global_costmap/costmap", 10, &GoalPublisherNode::globalCostmapCallback, this);
-  this->sub_done_ = nh_.subscribe("/me5413/done", 10, &GoalPublisherNode::doneCallback, this);
+  this->sub_calculated_target_ = nh_.subscribe("/calculated/target", 1, &GoalPublisherNode::calculatedTargetCallback, this);
 
   // Initialization
   this->robot_frame_ = "base_link";
@@ -37,7 +37,10 @@ GoalPublisherNode::GoalPublisherNode() : tf2_listener_(tf2_buffer_)
   this->relative_position_error_.data = 0.0;
   this->relative_heading_error_.data = 0.0;
   this->last_responded_goal_id_ = "";
+  this->last_goal_time_ = ros::Time::now();
   this->globalCostmapData = nav_msgs::OccupancyGrid();
+  this->gt_box_pose = geometry_msgs::PoseStamped();
+  this->calculated_target_ = geometry_msgs::PoseStamped();
 };
 
 void GoalPublisherNode::timerCallback(const ros::TimerEvent&)
@@ -93,6 +96,12 @@ void GoalPublisherNode::robotOdomCallback(const nav_msgs::Odometry::ConstPtr& od
   return;
 };
 
+void GoalPublisherNode::calculatedTargetCallback(const geometry_msgs::PoseStamped& target)
+{
+  this->calculated_target_.pose = target.pose;
+  return;
+};
+
 void GoalPublisherNode::goalNameCallback(const std_msgs::String::ConstPtr& name)
 {
   const std::string goal_name = name->data;
@@ -118,12 +127,13 @@ void GoalPublisherNode::goalNameCallback(const std_msgs::String::ConstPtr& name)
     // The following line is commented out because the goal pose is now randomly generated
     // It represents the ground truth pose of the box in the world frame
 
-    // P_world_goal = box_poses_[goal_box_id - 1];
+    this->gt_box_pose = box_poses_[goal_box_id - 1];
   }
   else if (this->goal_type_ == "done")
   {
+    P_world_goal = this->gt_box_pose;
     // The box search is done, so the robot should stay still
-    return;
+    // return;
   }
   else
   {
@@ -153,6 +163,28 @@ void GoalPublisherNode::goalNameCallback(const std_msgs::String::ConstPtr& name)
   // Transform the robot pose to map frame
   tf2::doTransform(this->pose_world_robot_, this->pose_map_robot_, transform_map_world);
 
+  if (this->goal_type_ == "done")
+  {
+    double x1 = this->calculated_target_.pose.position.x;
+    double y1 = this->calculated_target_.pose.position.y;
+    double z1 = this->calculated_target_.pose.position.z;
+
+    double x2 = P_world_goal.pose.position.x;
+    double y2 = P_world_goal.pose.position.y;
+    double z2 = P_world_goal.pose.position.z;
+    ROS_INFO("Ground truth position is: x=%f, y=%f, z=%f", x2, y2, z2);
+
+    // 计算差值
+    double x_diff = x1 - x2;
+    double y_diff = y1 - y2;
+    double z_diff = z1 - z2;
+    // Euclidean distance for position error
+    double position_error = sqrt(x_diff * x_diff + y_diff * y_diff + z_diff * z_diff);
+    ROS_INFO("Position error: %f", position_error);
+    
+    return;
+  }
+
   // Publish goal pose in map frame
   this->pub_goal_.publish(P_map_goal);
 
@@ -163,12 +195,17 @@ void GoalPublisherNode::goalNameCallback(const std_msgs::String::ConstPtr& name)
 // It would give a new random goal if the previous goal is either succeeded or aborted
 void GoalPublisherNode::moveBaseStatusCallback(const actionlib_msgs::GoalStatusArray& status)
 {
+  // std::lock_guard<std::mutex> lock(mutex_);
   // Go through the status list
   for (const auto& goalStatus : status.status_list)
   {
     // Ensure the goal id is not the same as the last responded goal id
-    if (goalStatus.goal_id.id != this->last_responded_goal_id_)
+    double time_diff = (ros::Time::now() - last_goal_time_).toSec();
+    // std::cout << "Time difference: " << time_diff << std::endl;
+    if (goalStatus.goal_id.id != last_responded_goal_id_ && 
+            time_diff > 0.3)
     {
+      last_goal_time_ = ros::Time::now();
       if (goalStatus.status == actionlib_msgs::GoalStatus::SUCCEEDED ||
           goalStatus.status == actionlib_msgs::GoalStatus::ABORTED)
       {
@@ -273,7 +310,7 @@ bool GoalPublisherNode::isPointInObstacle(double x, double y)
         // If the map data is greater than 50, it is an obstacle
         if (this->globalCostmapData.data[index] >= 50)
         {
-          ros.loginfo("Point (%f, %f) is in obstacle. Regenerating a new random point", x, y);
+          ROS_INFO("Point is in obstacle. Regenerating a new random point");
           return true;
         }
       }

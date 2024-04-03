@@ -29,7 +29,7 @@
   <node name="rviz" pkg="rviz" type="rviz" required="true"
     args="-d $(find me5413_world)/config/cartographer_3d/demo_3d.rviz" />
 
-      <!-- Joy Node 手柄控制节点-->
+  <!-- Joy Node Gamepad control node-->
   <node name="joynode" pkg="joy" type="joy_node" args="" output="screen">
     <param name="autorepeat_rate" value="10"/>
     <param name="dev" value="/dev/input/js0"/>

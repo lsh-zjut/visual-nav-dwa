@@ -2,7 +2,7 @@
 This project is based on the NUS ME5413 Autonomous Mobile Robotics Final Project. We are the group 14.
 > Authors: [Tony](https://github.com/ztony0712), [Biao](https://github.com/legubiao), [David](https://github.com/huangyqs123), and [Chen](https://github.com/Chronobreakk)
 <!-- > Video Presentation -->
-[![ROS SLAM, Perception, and Navigation based on Gazebo simulation](https://img.youtube.com/vi/DUSrfBXQt9w/0.jpg)](https://www.youtube.com/watch?v=DUSrfBXQt9w)
+[![ROS SLAM, Perception, and Navigation based on Gazebo simulation](https://img.youtube.com/vi/WiEzSJmcEQE/0.jpg)](https://www.youtube.com/watch?v=WiEzSJmcEQE)
 
 As you see in the video, we have implemented the following techniques:
 - For SLAM: The Fast-lio algorithm is chosen for 3D LiDAR SLAM 

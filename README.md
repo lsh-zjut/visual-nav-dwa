@@ -64,6 +64,9 @@ sudo apt-get install ros-noetic-teb-local-planner
 
 # If rviz can't display the input image from camera, install the compressed-image-transport
 sudo apt-get install ros-noetic-compressed-image-transport
+
+# Install vision_msgs
+sudo apt-get install ros-noetic-vision-msgs
 ```
 
 ## Usage

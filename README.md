@@ -1,5 +1,5 @@
 # Autonomous Vehicle SLAM, Perception, and Navigation
-别看了，再看改Private了！！！
+COPYRIGHT VIOLATION NOTICE: We have found that many of our classmates have viewed our project. In the spirit of open source, we have not set our project as private. However, please do not directly copy from our code, we have a full submission record, showing that we have build our project completly by ourselves. Any plagiarism will be considered a breach of the NUS Academic Integrity Regulations.
 
 This project is based on the NUS ME5413 Autonomous Mobile Robotics Final Project. We are the group 14.
 > Authors: [Tony](https://github.com/ztony0712), [Biao](https://github.com/legubiao), [David](https://github.com/huangyqs123), [Chen](https://github.com/Chronobreakk), and [Bob](https://github.com/elegant1234)

@@ -16,7 +16,7 @@ class ROICoordinateCalculator:
         self.listener = tf.TransformListener()
 
         self.camera_info_sub = rospy.Subscriber('/front/rgb/camera_info', CameraInfo, self.camera_info_callback)
-        self.depth_image_sub = rospy.Subscriber('/front/depth/image_raw', Image, self.depth_callback)
+        self.depth_image_sub = rospy.Subscriber('/me5413/current_depth', Image, self.depth_callback)
         self.detection_sub = rospy.Subscriber('/me5413/detected', Detection2D, self.detection_callback)
 
         self.goal_pub = rospy.Publisher('/move_base_simple/goal', PoseStamped, queue_size=10)

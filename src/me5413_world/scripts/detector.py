@@ -17,6 +17,7 @@ class Detector(object):
     def __init__(self):
         self.bridge = CvBridge()
         self.image_sub = rospy.Subscriber("/front/rgb/image_raw", Image, self.input_img_callback)
+        self.depth_image_sub = rospy.Subscriber('/front/depth/image_raw', Image, self.depth_callback)
         self.template_sub = rospy.Subscriber("/rviz_panel/goal_name", String, self.template_callback)
 
         # Template for matching, obtained from the first frame.
@@ -25,9 +26,12 @@ class Detector(object):
         self.template_path = template_path
         self.done = False
 
+        self.depth_image = None
+
         # Initialize a publisher for sending msg
         self.matrix_pub = rospy.Publisher("/me5413/student_matrix", String, queue_size=10)
         self.detected_pub = rospy.Publisher("/me5413/detected", Detection2D, queue_size=10)
+        self.current_depth_pub = rospy.Publisher("/me5413/current_depth", Image, queue_size=10)
 
     def template_callback(self, data):
         if "box" not in data.data:
@@ -47,6 +51,9 @@ class Detector(object):
         except Exception as e:
             rospy.logerr("Error loading template image: {}".format(e))
 
+    def depth_callback(self, data):
+        self.depth_image = data
+
     def input_img_callback(self, data):
         if self.template is None:
             detection = Detection2D()
@@ -59,11 +66,12 @@ class Detector(object):
             return
         try:
             cv_image = self.bridge.imgmsg_to_cv2(data, "8UC3")
-            self.detect(cv_image)
+            current_depth = self.depth_image
+            self.detect(cv_image, current_depth)
         except CvBridgeError as e:
             print(e)
 
-    def publish_detection(self, x, y, width, height, img):
+    def publish_detection(self, x, y, width, height, img, current_depth):
         detection = Detection2D()
         # Configure your Detection2D message
         # For example, setting the bounding box size and position
@@ -80,9 +88,10 @@ class Detector(object):
         detection.source_img = ros_img
         # Publish the message
         self.detected_pub.publish(detection)
+        self.current_depth_pub.publish(current_depth)
         self.matrix_pub.publish("A0285282X")
 
-    def detect(self, image):
+    def detect(self, image, current_depth):
         # camera: 512, 640
         # template: 106, 137
 
@@ -123,7 +132,7 @@ class Detector(object):
         else:
             x_d, y_d, width, height = 0, 0, 0, 0
 
-        self.publish_detection(x_d, y_d, width, height, image)
+        self.publish_detection(x_d, y_d, width, height, image, current_depth)
 
         return image
 

@@ -1,0 +1,21 @@
+<launch>
+
+    <arg name="initial_pose_x" default="0.0"/>
+    <arg name="initial_pose_y" default="0.0"/>
+    <arg name="initial_pose_a" default="0.0"/>
+    <arg name="scan_topic" default="front/scan" />
+
+    <node pkg="amcl" type="amcl" name="amcl" output="screen">
+        <!--remap from="scan" to="/left_lidar" /-->
+        <param name="odom_frame_id" value="odom"/>
+	    <!--param name="odom_frame_id" value="base_link" /-->
+        <param name="base_frame_id" value="base_link" />
+        <param name="global_frame_id" value="map" />
+        <param name="initial_pose_x" value="$(arg initial_pose_x)" />
+        <param name="initial_pose_y" value="$(arg initial_pose_y)" />
+        <param name="initial_pose_a" value="$(arg initial_pose_a)" />
+	    <param name = "max_particles" value = "20"/>
+
+        <remap from="scan" to="$(arg scan_topic)"/>
+    </node>
+</launch>

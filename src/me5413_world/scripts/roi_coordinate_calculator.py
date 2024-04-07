@@ -25,17 +25,17 @@ class ROICoordinateCalculator:
 
         self.bridge = CvBridge()
         self.camera_info = None
-        self.cv_depth_image = None
+        self.depth_image = None
 
     def camera_info_callback(self, data):
         self.camera_info = data
 
     def depth_callback(self, data):
         # Use 32FC1 encoding to get depth in meters
-        self.cv_depth_image = self.bridge.imgmsg_to_cv2(data, desired_encoding="32FC1")
+        self.depth_image = data
 
     def detection_callback(self, detection_msg):
-        if self.camera_info is None or self.cv_depth_image is None:
+        if self.camera_info is None or self.depth_image is None:
             rospy.loginfo("Waiting for camera info and depth image...")
             return
 
@@ -43,11 +43,24 @@ class ROICoordinateCalculator:
             return
 
         rospy.loginfo("Target found.")
+        current_time = self.depth_image.header.stamp
+        cv_depth_image = self.bridge.imgmsg_to_cv2(self.depth_image, desired_encoding="32FC1")
         bbox = detection_msg.bbox
         center = bbox.center
+        size_x = bbox.size_x
+        size_y = bbox.size_y
+
+        start_x = int(max(center.x - size_x / 2, 0))
+        start_y = int(max(center.y - size_y / 2, 0))
+        end_x = int(min(center.x + size_x / 2, cv_depth_image.shape[1] - 1))
+        end_y = int(min(center.y + size_y / 2, cv_depth_image.shape[0] - 1))
+
+        roi_depth = cv_depth_image[start_y:end_y, start_x:end_x]
+
+        average_depth = np.nanmean(roi_depth)
 
         # Get the depth value at the center of the bounding box
-        depth = self.cv_depth_image[int(center.y), int(center.x)]
+        depth = average_depth
 
         if np.isnan(depth) or np.isinf(depth):
             rospy.loginfo("Invalid depth value.")
@@ -65,7 +78,7 @@ class ROICoordinateCalculator:
             Z = 0.0
 
         point_stamped = PointStamped()
-        current_time = rospy.Time.now()
+        # current_time = rospy.Time.now()
         point_stamped.header.stamp = current_time
         point_stamped.header.frame_id = "front_frame_optical"
         point_stamped.point.x = X

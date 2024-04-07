@@ -6,6 +6,7 @@ import cv2
 from std_msgs.msg import String
 from vision_msgs.msg import Detection2D
 import os
+import message_filters
 
 template_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "3.png")
 # template_path = "me5413_world/scripts/3.png"
@@ -16,9 +17,12 @@ firsttrack_list.append((0, 0, 106, 137))
 class Detector(object):
     def __init__(self):
         self.bridge = CvBridge()
-        self.image_sub = rospy.Subscriber("/front/rgb/image_raw", Image, self.input_img_callback)
-        self.depth_image_sub = rospy.Subscriber('/front/depth/image_raw', Image, self.depth_callback)
+        self.rgb_sub = message_filters.Subscriber("/front/rgb/image_raw", Image)
+        self.depth_sub = message_filters.Subscriber('/front/depth/image_raw', Image)
         self.template_sub = rospy.Subscriber("/rviz_panel/goal_name", String, self.template_callback)
+
+        self.ats = message_filters.ApproximateTimeSynchronizer([self.rgb_sub, self.depth_sub], 10, 0.01)
+        self.ats.registerCallback(self.synced_images_callback) 
 
         # Template for matching, obtained from the first frame.
         self.template = None
@@ -51,22 +55,22 @@ class Detector(object):
         except Exception as e:
             rospy.logerr("Error loading template image: {}".format(e))
 
-    def depth_callback(self, data):
-        self.depth_image = data
+    # def depth_callback(self, data):
+    #     self.depth_image = data
 
-    def input_img_callback(self, data):
+    def synced_images_callback(self, rgb_data, depth_data):
         if self.template is None:
             detection = Detection2D()
             detection.bbox.size_x = 0
             detection.bbox.size_y = 0
             detection.bbox.center.x = 0
             detection.bbox.center.y = 0
-            detection.source_img = data
+            detection.source_img = rgb_data
             self.detected_pub.publish(detection)
             return
         try:
-            cv_image = self.bridge.imgmsg_to_cv2(data, "8UC3")
-            current_depth = self.depth_image
+            cv_image = self.bridge.imgmsg_to_cv2(rgb_data, "8UC3")
+            current_depth = depth_data
             self.detect(cv_image, current_depth)
         except CvBridgeError as e:
             print(e)
@@ -101,7 +105,7 @@ class Detector(object):
         processed_template = template_gray
 
         original_height, original_width = processed_template.shape[:2]
-        scales = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75]
+        scales = [0.5, 0.75, 1.0, 1.25, 1.5]
         max_match_val = -1
         best_scale = None
         best_max_loc = None

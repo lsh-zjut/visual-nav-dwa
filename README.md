@@ -25,7 +25,7 @@ For more detail information, please check our report pdf file.
 
 ## Installation
 
-This repo is a ros workspace, containing three rospkgs:
+This repo is a ros workspace, containing four rospkgs:
 * `costmap_prohibition_layer-kinetic-devel` are tools to add a prohibition layer to the costmap
 * `interactive_tools` are customized tools to interact with gazebo and your robot
 * `jackal_description` contains the modified jackal robot model descriptions

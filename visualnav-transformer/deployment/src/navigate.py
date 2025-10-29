@@ -87,6 +87,31 @@ def main(args: argparse.Namespace):
     model = model.to(device)
     model.eval()
 
+    waypoint_scale = None
+    if model_params.get("normalize"):
+        candidate_scale = args.waypoint_scale
+        if candidate_scale is None:
+            candidate_scale = model_params.get("waypoint_scale")
+        if candidate_scale is None:
+            metric_spacing = model_params.get("metric_waypoint_spacing")
+            if metric_spacing is None:
+                data_cfg = model_params.get("data_config")
+                if isinstance(data_cfg, dict):
+                    metric_spacing = data_cfg.get("metric_waypoint_spacing")
+            waypoint_spacing = model_params.get("waypoint_spacing", 1.0)
+            if metric_spacing is not None:
+                candidate_scale = metric_spacing * waypoint_spacing
+
+        if candidate_scale is None:
+            candidate_scale = MAX_V / RATE
+            print(
+                "Warning: Falling back to MAX_V/RATE for waypoint scaling; specify --waypoint-scale "
+                "or add waypoint_scale to the model config for metric outputs."
+            )
+
+        waypoint_scale = float(candidate_scale)
+        print(f"Using waypoint scale factor: {waypoint_scale:.4f} meters/unit")
+
     
      # load topomap
     topomap_filenames = sorted(os.listdir(os.path.join(
@@ -223,8 +248,8 @@ def main(args: argparse.Namespace):
                         min_dist_idx + 1, len(waypoints) - 1)][args.waypoint]
                     closest_node = min(start + min_dist_idx + 1, goal_node)
         # RECOVERY MODE
-        if model_params["normalize"]:
-            chosen_waypoint[:2] *= (MAX_V / RATE)  
+        if model_params["normalize"] and waypoint_scale is not None:
+            chosen_waypoint[:2] *= waypoint_scale  
         waypoint_msg = Float32MultiArray()
         waypoint_msg.data = chosen_waypoint
         waypoint_pub.publish(waypoint_msg)
@@ -291,8 +316,14 @@ if __name__ == "__main__":
         type=int,
         help=f"Number of actions sampled from the exploration model (default: 8)",
     )
+    parser.add_argument(
+        "--waypoint-scale",
+        default=None,
+        type=float,
+        help="""Scale factor (in meters) to denormalize waypoints when the model was trained with
+        normalization. If omitted, the script attempts to infer it from the model config and
+        falls back to MAX_V/RATE.""",
+    )
     args = parser.parse_args()
     print(f"Using {device}")
     main(args)
-
-

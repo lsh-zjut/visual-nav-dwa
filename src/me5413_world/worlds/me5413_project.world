@@ -84,6 +84,52 @@
       <elevation>0</elevation>
       <heading_deg>0</heading_deg>
     </spherical_coordinates>
+    <!-- 添加数字模型 -->
+    <include>
+      <uri>model://number1</uri>
+      <pose>9.86507 0.533722 0.4 0 0 0</pose>
+    </include>
+    
+    <include>
+      <uri>model://number2</uri>
+      <pose>10.6528 -3.05043 0.4 0 0 0</pose>
+    </include>
+    
+    <include>
+      <uri>model://number3</uri>
+      <pose>14.6644 -1.77109 0.4 0 0 0</pose>
+    </include>
+    
+    <include>
+      <uri>model://number4</uri>
+      <pose>12.9558 -3.74538 0.4 0 0 0</pose>
+    </include>
+    
+    <include>
+      <uri>model://number5</uri>
+      <pose>11.7821 -6.08689 0.4 0 0 0</pose>
+    </include>
+    
+    <include>
+      <uri>model://number6</uri>
+      <pose>9.79212 -5.27453 0.4 0 0 0</pose>
+    </include>
+    
+    <include>
+      <uri>model://number7</uri>
+      <pose>11.6952 -1.08516 0.4 0 0 0</pose>
+    </include>
+    
+    <include>
+      <uri>model://number8</uri>
+      <pose>8.9359 -1.95818 0.4 0 0 0</pose>
+    </include>
+    
+    <include>
+      <uri>model://number9</uri>
+      <pose>12.9157 0.833448 0.4 0 0 0</pose>
+    </include>
+    
     <model name='24fall_finalproject'>
       <pose frame=''>8.55103 -5.1631 0 0 -0 0</pose>
       <link name='Wall_11'>

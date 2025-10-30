@@ -1,77 +1,63 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-dwa_controller.py
+dwa_relative_controller.py
 
-使用动态窗口法（Dynamic Window Approach，DWA）实现移动机器人在障碍环境中的局部路径规划。
-本节点接收 navigate.py 发布的 waypoint 以及传感器信息，计算安全的线/角速度并发布到 /cmd_vel。
+仅依赖 waypoint (Float32MultiArray) 的机器人坐标系 Δx、Δy 指令和激光雷达，
+使用动态窗口法（DWA）生成安全的线速度/角速度，并发布到 /cmd_vel。
 """
 
-import dataclasses
+from __future__ import annotations
+
 import math
-import threading
-from typing import Tuple, List
+from dataclasses import dataclass
+from typing import List, Tuple
 
 import numpy as np
 import rospy
 from geometry_msgs.msg import Twist
-from nav_msgs.msg import Odometry
 from sensor_msgs.msg import LaserScan
 from std_msgs.msg import Float32MultiArray, Bool
-import yaml
-
-from ros_data import ROSData
-from topic_names import WAYPOINT_TOPIC, REACHED_GOAL_TOPIC
-from utils import clip_angle
 
 
-# ========================  配置与基本常量  ========================
+# ========================  参数配置  ========================
 
-CONFIG_PATH = "../config/robot.yaml"  # 机器人参数配置文件路径，与实际部署保持一致
+WAYPOINT_TOPIC = "/waypoint"
+SCAN_TOPIC = "/front/scan"
+CMD_TOPIC = "/cmd_vel"
+REACHED_GOAL_TOPIC = "/topoplan/reached_goal"
 
-with open(CONFIG_PATH, "r", encoding="utf-8") as cfg_file:
-    robot_cfg = yaml.safe_load(cfg_file)
+WAYPOINT_TIMEOUT = 2   # waypoint 超时时间 (s)
+LIDAR_TIMEOUT = 0.5      # 激光雷达超时时间 (s)
+CMD_TIMEOUT = 1.0        # 若长时间收不到 waypoint，则停下 (s)
 
-# 速度与话题配置（若 robot.yaml 未提供则使用默认值）
-MAX_V = float(robot_cfg.get("max_v", 0.25))                 # 最大线速度 (m/s)
-MAX_W = float(robot_cfg.get("max_w", 0.30))                 # 最大角速度 (rad/s)
-VEL_TOPIC = robot_cfg.get("vel_teleop_topic", "/cmd_vel")   # 速度指令发布话题
-SCAN_TOPIC = robot_cfg.get("base_scan_topic", "/front/scan")  # 激光雷达话题
-ODOM_TOPIC = robot_cfg.get("odom_topic", "/odometry/filtered")  # 里程计话题
-ROBOT_RADIUS = float(robot_cfg.get("robot_radius", 0.25))   # 机器人等效半径 (m)，用于障碍膨胀
+DT = 0.1                 # 控制周期 (s)
+PRED_HORIZON = 10        # 轨迹预测步数
+ACC_V = 0.4              # 线速度最大加速度 (m/s^2)
+ACC_W = 5.0              # 角速度最大加速度 (rad/s^2)
+MAX_V = 0.3              # 线速度上限 (m/s)
+MAX_W = 0.5              # 角速度上限 (rad/s)
+RES_V = 0.02             # 线速度采样间隔
+RES_W = 0.02             # 角速度采样间隔
 
-# 数据有效期，超时则视为无数据
-WAYPOINT_TIMEOUT = 1.0  # waypoint 超时时间 (s)
-LIDAR_TIMEOUT = 0.5     # 激光数据超时时间 (s)
-ODOM_TIMEOUT = 0.5      # 里程计数据超时时间 (s)
+WEIGHT_HEADING = 4.0
+WEIGHT_VELOCITY = 0.2
+WEIGHT_CLEARANCE = 1.8
+WEIGHT_GOAL_DIST = 2.6
+TURN_PENALTY_WEIGHT = 1
 
-# 动态窗口参数
-DT = 0.1               # 控制周期，同时作为轨迹仿真步长 (s)
-PRED_HORIZON = 10      # 轨迹预测步数，值越大考虑的未来越远
-ACC_V = 0.4            # 线速度最大加速度 (m/s^2)
-ACC_W = 2.5            # 角速度最大加速度 (rad/s^2)
-RES_V = 0.02           # 线速度采样分辨率
-RES_W = 0.02           # 角速度采样分辨率
+CLEARANCE_HARD = 0.15    # 最低安全裕度 (m)
+GOAL_DISTANCE_SCALE = 1.2
+MIN_LINEAR_CMD = 0.05    # 防止速度过小导致卡滞
 
-# 评价函数权重
-WEIGHT_HEADING = 3.2      # 朝向对齐权重
-WEIGHT_VELOCITY = 0.15    # 保持速度权重
-WEIGHT_CLEARANCE = 1.8    # 障碍间隙权重
-WEIGHT_GOAL_DIST = 2.8    # waypoint 距离权重
-
-CLEARANCE_HARD = 0.05     # 障碍硬约束，小于该距离直接淘汰 (m)
-GOAL_DISTANCE_SCALE = 1.5 # waypoint 距离打分的指数衰减尺度 (m)
-HEADING_LOCK_ANGLE = math.radians(25.0)  # 偏航超过该角度时降低线速度
-HEADING_LOCK_DECAY = math.radians(60.0)  # 偏航误差的衰减区间
-TURN_PENALTY_WEIGHT = 2.5  # 转弯惩罚权重，避免盲目高速转向
-MIN_LINEAR_CMD = 0.15      # 最小前进速度指令 (m/s)，防止速度过小导致停滞
+REACHED_GOAL_RADIUS = 0.05  # waypoint 距离阈值 (m)
+ROBOT_RADIUS = 0.25         # 用于 clearance 估计 (m)
 
 
-# ========================  状态结构体定义  ========================
+# ========================  数据结构  ========================
 
-@dataclasses.dataclass
+@dataclass
 class RobotState:
-    """表示机器人在局部坐标系下的姿态和速度。"""
     x: float
     y: float
     yaw: float
@@ -79,146 +65,140 @@ class RobotState:
     w: float
 
 
-# ========================  DWA 控制器实现  ========================
+# ========================  主体实现  ========================
 
 class DWAController:
-    """基于 DWA 的局部规划控制节点。"""
-
     def __init__(self) -> None:
-        rospy.init_node("DWA_CONTROLLER", anonymous=False)
-        self._lock = threading.Lock()
-        self._min_spin_speed = 0.05       # fallback 自转模式允许的最小角速度 (rad/s)
-        self._preferred_spin_speed = 0.2  # fallback 自转模式期望角速度 (rad/s)
+        rospy.init_node("DWA_RELATIVE_CONTROLLER", anonymous=False)
 
-        # 使用 ROSData 封装订阅数据，自动处理缓存和超时
-        self._waypoint = ROSData(timeout=WAYPOINT_TIMEOUT, name="waypoint")
-        self._scan = ROSData(timeout=LIDAR_TIMEOUT, name="scan")
-        self._odom = ROSData(timeout=ODOM_TIMEOUT, name="odom")
+        self._last_waypoint = None
+        self._last_waypoint_time = None
+        self._last_scan = None
+        self._last_scan_time = None
+
         self._goal_reached = False
 
-        # 订阅 waypoint / 终点标志 / 激光雷达 / 里程计
-        rospy.Subscriber(WAYPOINT_TOPIC, Float32MultiArray, self._waypoint_cb, queue_size=1)
-        rospy.Subscriber(REACHED_GOAL_TOPIC, Bool, self._goal_cb, queue_size=1)
-        rospy.Subscriber(SCAN_TOPIC, LaserScan, self._scan_cb, queue_size=1)
-        rospy.Subscriber(ODOM_TOPIC, Odometry, self._odom_cb, queue_size=1)
+        self._current_v = 0.0
+        self._current_w = 0.0
 
-        # 速度命令发布者
-        self._cmd_pub = rospy.Publisher(VEL_TOPIC, Twist, queue_size=1)
+        rospy.Subscriber(WAYPOINT_TOPIC, Float32MultiArray, self._waypoint_cb, queue_size=1)
+        rospy.Subscriber(SCAN_TOPIC, LaserScan, self._scan_cb, queue_size=1)
+        rospy.Subscriber(REACHED_GOAL_TOPIC, Bool, self._goal_cb, queue_size=1)
+
+        self._cmd_pub = rospy.Publisher(CMD_TOPIC, Twist, queue_size=1)
         self._rate = rospy.Rate(int(1.0 / DT))
 
-    # --------------------  回调函数  --------------------
+        rospy.loginfo("DWA (relative) controller ready.")
+
+    # -------------------- 回调 --------------------
 
     def _waypoint_cb(self, msg: Float32MultiArray) -> None:
-        """接收局部 waypoint（相对机器人坐标系），写入缓存。"""
-        self._waypoint.set(msg.data)
-
-    def _goal_cb(self, msg: Bool) -> None:
-        """接收上游导航是否到达终点的标志。"""
-        self._goal_reached = msg.data
+        if len(msg.data) < 2:
+            rospy.logwarn_throttle(2.0, "收到的 waypoint 少于 2 个元素，忽略。")
+            return
+        self._last_waypoint = np.array(msg.data[:2], dtype=np.float32)
+        self._last_waypoint_time = rospy.Time.now()
 
     def _scan_cb(self, msg: LaserScan) -> None:
-        """接收激光雷达扫描数据。"""
-        self._scan.set(msg)
+        self._last_scan = msg
+        self._last_scan_time = rospy.Time.now()
 
-    def _odom_cb(self, msg: Odometry) -> None:
-        """接收里程计估计的机器人位姿与速度。"""
-        self._odom.set(msg)
+    def _goal_cb(self, msg: Bool) -> None:
+        self._goal_reached = msg.data
 
-    # --------------------  主循环  --------------------
+    # -------------------- 主循环 --------------------
 
     def run(self) -> None:
-        """循环读取传感器数据，计算最优速度，并发布到 /cmd_vel。"""
-        rospy.loginfo("DWA controller is ready.")
         while not rospy.is_shutdown():
             twist = Twist()
 
-            # 已到达目标则保持原地
             if self._goal_reached:
+                self._current_v = 0.0
+                self._current_w = 0.0
                 self._cmd_pub.publish(twist)
-                rospy.loginfo_throttle(1.0, "Goal reached flag set. Holding still.")
+                rospy.loginfo_throttle(1.0, "外部标志：已到达目标，保持静止。")
                 self._rate.sleep()
                 continue
 
-            # 数据不齐全则等待
             if not self._data_ready():
+                self._current_v = 0.0
+                self._current_w = 0.0
                 self._cmd_pub.publish(twist)
                 self._rate.sleep()
                 continue
 
-            # 读取当前状态并整理 waypoint（仅取平面 x, y）
-            state = self._get_state()
-            waypoint = np.array(self._waypoint.get(), dtype=np.float32)
-            waypoint = waypoint[:2] if waypoint.shape[0] >= 2 else waypoint
+            waypoint_rel = self._last_waypoint.copy()
+            if np.linalg.norm(waypoint_rel) < REACHED_GOAL_RADIUS:
+                self._current_v = 0.0
+                self._current_w = 0.0
+                self._cmd_pub.publish(twist)
+                rospy.loginfo_throttle(1.0, "Wayoint 距离过近，保持原地等待。")
+                self._rate.sleep()
+                continue
 
-            # 调用 DWA 寻优，得到线速度与角速度
-            best_v, best_w = self._plan(state, waypoint, self._scan.get())
-            if best_v > 0.0 and best_v < MIN_LINEAR_CMD:
+            state = RobotState(
+                x=0.0,
+                y=0.0,
+                yaw=0.0,
+                v=self._current_v,
+                w=self._current_w,
+            )
+
+            best_v, best_w = self._plan(state, waypoint_rel, self._last_scan)
+            if 0.0 < best_v < MIN_LINEAR_CMD:
                 best_v = MIN_LINEAR_CMD
 
             twist.linear.x = best_v
             twist.angular.z = best_w
 
-            rospy.loginfo("输出速度 -> v: %.3f m/s, w: %.3f rad/s", best_v, best_w)
+            self._current_v = best_v
+            self._current_w = best_w
+
+            rospy.loginfo(
+                "发送速度: v = %.3f m/s, w = %.3f rad/s (目标 Δx=%.2f, Δy=%.2f)",
+                best_v,
+                best_w,
+                waypoint_rel[0],
+                waypoint_rel[1],
+            )
+
             self._cmd_pub.publish(twist)
             self._rate.sleep()
 
-    # --------------------  数据判断与状态转换  --------------------
+    # -------------------- 数据校验 --------------------
 
     def _data_ready(self) -> bool:
-        """确认 waypoint / scan / odom 均在有效期内。"""
-        waypoint_ok = self._waypoint.is_valid(verbose=True)
-        scan_ok = self._scan.is_valid(verbose=True)
-        odom_ok = self._odom.is_valid(verbose=True)
+        now = rospy.Time.now()
 
-        if not waypoint_ok:
-            rospy.logwarn_throttle(1.0, "等待 waypoint 数据...")
-        if not scan_ok:
-            rospy.logwarn_throttle(1.0, "等待激光雷达 /front/scan 数据...")
-        if not odom_ok:
-            rospy.logwarn_throttle(1.0, "等待里程计数据...")
+        if (
+            self._last_waypoint is None
+            or self._last_waypoint_time is None
+            or (now - self._last_waypoint_time).to_sec() > WAYPOINT_TIMEOUT
+        ):
+            rospy.logwarn_throttle(1.0, "等待新 waypoint...")
+            return False
 
-        return waypoint_ok and scan_ok and odom_ok
+        if (
+            self._last_scan is None
+            or self._last_scan_time is None
+            or (now - self._last_scan_time).to_sec() > LIDAR_TIMEOUT
+        ):
+            rospy.logwarn_throttle(1.0, f"等待激光雷达 {SCAN_TOPIC} 数据...")
+            return False
 
-    def _get_state(self) -> RobotState:
-        """从里程计消息提取机器人在世界系下的位姿和当前速度。"""
-        odom: Odometry = self._odom.get()
-        pose = odom.pose.pose
-        twist = odom.twist.twist
+        return True
 
-        yaw = self._quaternion_to_yaw(
-            pose.orientation.x,
-            pose.orientation.y,
-            pose.orientation.z,
-            pose.orientation.w,
-        )
+    # -------------------- DWA 规划 --------------------
 
-        return RobotState(
-            x=pose.position.x,
-            y=pose.position.y,
-            yaw=yaw,
-            v=twist.linear.x,
-            w=twist.angular.z,
-        )
-
-    # --------------------  DWA 采样与评分  --------------------
-
-    def _plan(self, state: RobotState, waypoint: np.ndarray, scan: LaserScan) -> Tuple[float, float]:
-        """根据当前状态和传感器数据，遍历动态窗口内的速度候选并选择最优解。"""
+    def _plan(self, state: RobotState, waypoint_rel: np.ndarray, scan: LaserScan) -> Tuple[float, float]:
         dynamic_window = self._compute_dynamic_window(state)
-        rospy.logdebug(
-            "动态窗口: v=[%.3f, %.3f], w=[%.3f, %.3f]",
-            dynamic_window[0],
-            dynamic_window[1],
-            dynamic_window[2],
-            dynamic_window[3],
-        )
 
         best_score = -float("inf")
         best_cmd = (0.0, 0.0)
 
         ranges = np.array(scan.ranges, dtype=np.float32)
         if ranges.size == 0:
-            rospy.logwarn_throttle(1.0, "激光数据为空，尝试原地旋转重新搜索路径。")
+            rospy.logwarn_throttle(1.0, "激光数据为空，采用原地旋转。")
             return self._fallback_spin(dynamic_window, ranges, scan.range_min, scan.range_max)
 
         angles = np.linspace(scan.angle_min, scan.angle_max, len(ranges))
@@ -228,22 +208,21 @@ class DWAController:
                 traj = self._simulate(state, v, w)
                 terminal_state = traj[-1]
 
-                heading_error = abs(self._heading_error(terminal_state, waypoint))
-                heading_cost = self._heading_cost(terminal_state, waypoint)
-                goal_tracking_cost = self._goal_distance_cost(terminal_state, waypoint)
+                heading_error = abs(self._heading_error(terminal_state, waypoint_rel))
+                heading_cost = self._heading_cost(terminal_state, waypoint_rel)
+                goal_cost = self._goal_distance_cost(terminal_state, waypoint_rel)
                 velocity_cost = max(v, 0.0) / max(MAX_V, 1e-3)
                 clearance_cost = self._clearance_cost(
                     traj, ranges, angles, scan.range_min, scan.range_max
                 )
 
-                # 不满足安全距离则直接淘汰
                 if clearance_cost < CLEARANCE_HARD:
                     continue
 
-                if heading_error > HEADING_LOCK_ANGLE:
+                if heading_error > math.radians(25.0):
                     decay = max(
                         0.0,
-                        1.0 - (heading_error - HEADING_LOCK_ANGLE) / max(HEADING_LOCK_DECAY, 1e-6),
+                        1.0 - (heading_error - math.radians(25.0)) / math.radians(60.0),
                     )
                     velocity_cost *= decay
 
@@ -253,7 +232,7 @@ class DWAController:
                     WEIGHT_HEADING * heading_cost
                     + WEIGHT_VELOCITY * velocity_cost
                     + WEIGHT_CLEARANCE * clearance_cost
-                    + WEIGHT_GOAL_DIST * goal_tracking_cost
+                    + WEIGHT_GOAL_DIST * goal_cost
                     - TURN_PENALTY_WEIGHT * alignment_penalty
                 )
 
@@ -262,22 +241,14 @@ class DWAController:
                     best_cmd = (v, w)
 
         if best_score == -float("inf"):
-            rospy.logwarn_throttle(1.0, "未找到可行速度候选，尝试原地旋转。")
-            spin_cmd = self._fallback_spin(dynamic_window, ranges, scan.range_min, scan.range_max)
-            if abs(spin_cmd[1]) > 1e-3:
-                rospy.loginfo("进入自转模式搜索路径，角速度 w=%.3f", spin_cmd[1])
-            else:
-                rospy.logwarn_throttle(1.0, "自转也受限，继续保持原地等待。")
-            return spin_cmd
-
-        rospy.logdebug("最优评分 %.3f (v=%.3f, w=%.3f)", best_score, best_cmd[0], best_cmd[1])
+            rospy.logwarn_throttle(1.0, "未找到可行速度，尝试原地旋转。")
+            return self._fallback_spin(dynamic_window, ranges, scan.range_min, scan.range_max)
 
         return best_cmd
 
-    # --------------------  辅助函数  --------------------
+    # -------------------- 动态窗口、轨迹与代价 --------------------
 
     def _compute_dynamic_window(self, state: RobotState) -> Tuple[float, float, float, float]:
-        """结合当前速度与加速度约束，计算下一周期可达的速度范围。"""
         v_min = max(0.0, state.v - ACC_V * DT)
         v_max = min(MAX_V, state.v + ACC_V * DT)
         w_min = max(-MAX_W, state.w - ACC_W * DT)
@@ -285,9 +256,8 @@ class DWAController:
         return v_min, v_max, w_min, w_max
 
     def _simulate(self, state: RobotState, v: float, w: float) -> List[RobotState]:
-        """在机器人局部坐标系中仿真未来轨迹，返回每一步的状态。"""
         traj: List[RobotState] = []
-        x, y, yaw = 0.0, 0.0, 0.0  # 以机器人当前位置作为原点
+        x, y, yaw = 0.0, 0.0, 0.0
 
         for _ in range(PRED_HORIZON):
             x += v * math.cos(yaw) * DT
@@ -297,27 +267,19 @@ class DWAController:
 
         return traj
 
-    def _heading_error(self, state: RobotState, waypoint: np.ndarray) -> float:
-        """计算终点朝向与 waypoint 方位的角度差（弧度）。"""
-        if waypoint.shape[0] < 2:
-            return 0.0
-        goal_heading = math.atan2(waypoint[1], waypoint[0])
-        return clip_angle(goal_heading - state.yaw)
+    def _heading_error(self, state: RobotState, waypoint_rel: np.ndarray) -> float:
+        goal_heading = math.atan2(waypoint_rel[1], waypoint_rel[0])
+        return self._wrap_angle(goal_heading - state.yaw)
 
-    def _heading_cost(self, state: RobotState, waypoint: np.ndarray) -> float:
-        """朝向越接近 waypoint 得分越高，范围 [0, 1]。"""
-        angle_diff = abs(self._heading_error(state, waypoint))
+    def _heading_cost(self, state: RobotState, waypoint_rel: np.ndarray) -> float:
+        angle_diff = abs(self._heading_error(state, waypoint_rel))
         return 1.0 - angle_diff / math.pi
 
-    def _goal_distance_cost(self, state: RobotState, waypoint: np.ndarray) -> float:
-        """终点越接近 waypoint 得分越高，范围 [0, 1]。"""
-        if waypoint.shape[0] < 2:
-            return 0.0
-        dx = waypoint[0] - state.x
-        dy = waypoint[1] - state.y
+    def _goal_distance_cost(self, state: RobotState, waypoint_rel: np.ndarray) -> float:
+        dx = waypoint_rel[0] - state.x
+        dy = waypoint_rel[1] - state.y
         distance = math.hypot(dx, dy)
-        scale = max(GOAL_DISTANCE_SCALE, 1e-3)
-        return math.exp(-distance / scale)
+        return math.exp(-distance / max(GOAL_DISTANCE_SCALE, 1e-3))
 
     def _clearance_cost(
         self,
@@ -327,17 +289,12 @@ class DWAController:
         range_min: float,
         range_max: float,
     ) -> float:
-        """
-        遍历轨迹上的点，统计最小障碍间隙，减去机器人半径后归一化到 [0, 1]。
-        1 表示安全裕量大，0 表示碰撞或穿模。
-        """
         min_clearance = range_max
         effective_max = max(range_max - ROBOT_RADIUS, range_min)
 
         for point in traj:
-            px, py = point.x, point.y
-            dist = math.hypot(px, py)
-            heading = math.atan2(py, px)
+            dist = math.hypot(point.x, point.y)
+            heading = math.atan2(point.y, point.x)
             idx = int((heading - angles[0]) / (angles[-1] - angles[0]) * (len(angles) - 1))
 
             if 0 <= idx < len(ranges):
@@ -345,16 +302,13 @@ class DWAController:
                 if not np.isfinite(obstacle_dist):
                     obstacle_dist = range_max
 
-                # 膨胀障碍物以考虑机器人半径
                 obstacle_dist = max(obstacle_dist - ROBOT_RADIUS, range_min)
-
                 if obstacle_dist > range_min:
                     margin = max(obstacle_dist - dist, 0.0)
                     min_clearance = min(min_clearance, margin)
 
         min_clearance = max(min_clearance, 0.0)
-        denominator = max(effective_max, 1e-3)
-        return min(min_clearance / denominator, 1.0)
+        return min(min_clearance / max(effective_max, 1e-3), 1.0)
 
     def _fallback_spin(
         self,
@@ -363,19 +317,14 @@ class DWAController:
         range_min: float,
         range_max: float,
     ) -> Tuple[float, float]:
-        """无可行速度时保持原地，根据障碍分布选择安全方向自转。"""
         v_spin = 0.0
         max_left = max(dynamic_window[3], 0.0)
         max_right = max(-dynamic_window[2], 0.0)
-        spin_limit = max(max_left, max_right)
-        if spin_limit < 1e-3:
-            spin_limit = MAX_W
+        spin_limit = max(max_left, max_right, 1e-3)
 
-        spin_mag = min(self._preferred_spin_speed, spin_limit)
-        if spin_mag < self._min_spin_speed:
-            spin_mag = spin_limit
-        if spin_mag < self._min_spin_speed:
-            return v_spin, 0.0
+        spin_speed = min(0.25, spin_limit)
+        if spin_speed < 0.08:
+            spin_speed = spin_limit
 
         direction = 1.0
         if ranges.size > 0:
@@ -385,25 +334,16 @@ class DWAController:
             if right_score > left_score:
                 direction = -1.0
 
-        spin_cmd = direction * spin_mag
+        spin_cmd = direction * spin_speed
         spin_cmd = max(min(spin_cmd, dynamic_window[3]), dynamic_window[2])
 
-        if abs(spin_cmd) < self._min_spin_speed:
-            spin_cmd = self._min_spin_speed * (1.0 if spin_cmd >= 0.0 else -1.0)
-            spin_cmd = max(min(spin_cmd, dynamic_window[3]), dynamic_window[2])
-
-        if abs(spin_cmd) < 1e-3:
-            return v_spin, 0.0
+        if abs(spin_cmd) < 0.05:
+            spin_cmd = 0.05 * (1 if spin_cmd >= 0 else -1)
 
         return v_spin, spin_cmd
 
     @staticmethod
-    def _direction_clearance(
-        samples: np.ndarray,
-        range_min: float,
-        range_max: float,
-    ) -> float:
-        """统计一组激光距离的平均可行间隙，用于比较左右方向的通行性。"""
+    def _direction_clearance(samples: np.ndarray, range_min: float, range_max: float) -> float:
         if samples.size == 0:
             return range_min
         finite = samples[np.isfinite(samples)]
@@ -415,14 +355,11 @@ class DWAController:
         return float(np.mean(adjusted))
 
     @staticmethod
-    def _quaternion_to_yaw(x: float, y: float, z: float, w: float) -> float:
-        """四元数转换为 yaw（围绕 Z 轴的偏航角）。"""
-        siny_cosp = 2.0 * (w * z + x * y)
-        cosy_cosp = 1.0 - 2.0 * (y * y + z * z)
-        return math.atan2(siny_cosp, cosy_cosp)
+    def _wrap_angle(theta: float) -> float:
+        return (theta + math.pi) % (2 * math.pi) - math.pi
 
 
-# ========================  节点入口  ========================
+# ========================  入口函数  ========================
 
 def main() -> None:
     controller = DWAController()
